@@ -51,7 +51,6 @@ import {
   Pencil,
   HelpCircle,
   Keyboard,
-  Monitor,
   CircleStop,
   CheckSquare,
   Folder,

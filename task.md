@@ -11,7 +11,15 @@
 - Limites : pas de réseau WhatsApp ; aucun chiffrement réel ; IA/chaînes et certaines options sont des interfaces de démo. Les messages éphémères sont une préférence seulement. Fichiers des captures : aperçu uniquement.
 
 # Amélioration demandée
-- [ ] Nouvelle surface d’appel plein écran et mode réduit.
-- [ ] Grille/focus, conversation, participants, contrôles et réactions animées.
-- [ ] Modernisation modérée des transitions de l’interface.
-- [ ] Tests desktop/mobile, lint, build et livraison.
+- [x] Nouvelle surface d’appel plein écran et mode réduit.
+- [x] Grille/focus, conversation, participants, contrôles et réactions animées.
+- [x] Modernisation modérée des transitions de l’interface.
+- [x] Tests desktop/mobile et lint/build réussis.
+- [ ] Livraison mise à jour.
+
+Tests appels : plein écran applicatif, chat envoyé, micro/caméra simulés, réactions, focus/grille, partage simulé, réduire/restaurer, ajouter participant, mobile et raccrocher. Aucun erreur JavaScript. Caméra locale optionnelle avec consentement navigateur ; pas de transmission.
+
+# Correction grille adaptative
+- [ ] Remplacer les grilles CSS fixes par un calcul dimensionnel.
+- [ ] Focus, partage, pagination, retrait des invités.
+- [ ] Tests 2/4/5/8/12/16/20/32 personnes desktop et mobile.

@@ -13,3 +13,6 @@ Architecture : pages/messenger.tsx et composants spécialisés ; état React per
 Référence utilisateur image_vuiSWi.png : grille vidéo 2×2, noms en superposition, barre de commandes et conversation latérale. Adaptation professionnelle sombre, vert WhatsApp, panneaux ardoise, boutons généreux, bordures discrètes. Plein écran applicatif par défaut ; mode réduit réversible. Sur mobile, grille compacte et conversation en panneau superposé.
 Photos de démonstration découpées dans la référence fournie, non présentées comme des flux réels. Aucun appel réseau.
 Motion : entrée échelonnée des tuiles, présence des panneaux, transition grille/focus, réactions flottantes, anneaux d’attente. Respect du mouvement réduit via MotionConfig.
+
+## Correction grille multi-participants
+Calcul réel via ResizeObserver : dimensions, colonnes et lignes optimisées pour maximiser la taille de vidéos au format 16:10. Dernière ligne centrée, tuiles identiques, réduction automatique lors des ajouts. Focus : grande tuile sur toute la hauteur, bande latérale de miniatures ; sur mobile, grande tuile au-dessus d’une bande horizontale. Pagination si trop de participants pour conserver une taille lisible. Aucun défilement ni rognage des noms. Mise à jour fluide lors des changements de taille, panneau, ajout ou retrait.

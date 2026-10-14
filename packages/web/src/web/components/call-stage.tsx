@@ -1,9 +1,9 @@
+import { fitGrid, spotlightLayout, type TileRect } from "../lib/call-layout";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import {
   ArrowLeft,
   CheckCheck,
-  ChevronDown,
   Maximize2,
   MessageSquare,
   Mic,
@@ -25,6 +25,9 @@ import {
   Grid2X2,
   Expand,
   Camera,
+  ChevronLeft,
+  ChevronRight,
+  UserMinus,
 } from "lucide-react";
 import type { Chat, Message } from "../lib/chat-data";
 import { Avatar } from "./chat-ui";
@@ -71,16 +74,33 @@ export default function CallStage({
           { id: "remote", name: "Frank Martin", photo: "1" },
           { id: "alex", name: "Alexandra", photo: "2" },
           { id: "john", name: "John Hudson", photo: "3" },
-          { id: "self", name: profileName, photo: "4", muted: true, self: true },
+          { id: "self", name: profileName, photo: "4", self: true },
         ]
       : [
           { id: "remote", name: call.name, photo: "1" },
           { id: "self", name: profileName, photo: "4", self: true },
         ],
   );
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [gridSize, setGridSize] = useState({ width: 0, height: 0 });
+  const [page, setPage] = useState(0);
+  useEffect(() => {
+    const element = gridRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setGridSize((previous) =>
+        Math.abs(previous.width - width) < 1 && Math.abs(previous.height - height) < 1
+          ? previous
+          : { width, height },
+      );
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const cameraRef = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
-  const stage = useRef<HTMLDivElement>(null);
+  const stage = useRef<HTMLDialogElement>(null);
   const messagesEnd = useRef<HTMLDivElement>(null);
   const connected = call.state === "connected";
   const timer = `${Math.floor(call.seconds / 60)
@@ -160,10 +180,19 @@ export default function CallStage({
     setDraft("");
   }
   function addParticipant() {
+    setPage(0);
     const n = people.length;
+    if (n >= 32) {
+      setNotice("Limite : 32 participants dans cette démo");
+      return;
+    }
     setPeople((ps) => [
       ...ps,
-      { id: `demo-${n}`, name: `Invité ${n - 1}`, photo: String((n % 4) + 1) },
+      {
+        id: `demo-${Date.now()}-${Math.random()}`,
+        name: `Invité ${n - 1}`,
+        photo: String((n % 4) + 1),
+      },
     ]);
     setNotice("Participant de démonstration ajouté");
   }
@@ -178,13 +207,39 @@ export default function CallStage({
     }
     setMore(false);
   }
+  const mobileGrid = gridSize.width < 560;
+  const featured = !minimized && (sharing || layout === "focus");
+  const perPage = minimized ? 4 : featured ? (mobileGrid ? 3 : 6) : mobileGrid ? 6 : 16;
+  useEffect(() => setPage(0), [perPage]);
+  const pool = featured && !sharing ? people.filter((p) => p.id !== focus) : people;
+  const pageCount = Math.max(1, Math.ceil(pool.length / perPage));
+  const activePage = Math.min(page, pageCount - 1);
+  const pagedPeople = pool.slice(activePage * perPage, (activePage + 1) * perPage);
+  const featuredPerson = people.find((p) => p.id === focus) || people[0];
+  const visiblePeople = featured && !sharing ? [featuredPerson, ...pagedPeople] : pagedPeople;
+  const gap = minimized ? 6 : mobileGrid ? 8 : 12;
+  const focusedLayout = spotlightLayout(gridSize.width, gridSize.height, pagedPeople.length, gap);
+  const rectangles: TileRect[] = featured
+    ? sharing
+      ? focusedLayout.thumbnails
+      : [focusedLayout.main, ...focusedLayout.thumbnails]
+    : fitGrid(visiblePeople.length, gridSize.width, gridSize.height, gap);
+  function tileStyle(rect?: TileRect) {
+    return rect
+      ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+      : { left: 0, top: 0, width: 0, height: 0 };
+  }
+  function removePerson(id: string) {
+    setPeople((ps) => ps.filter((p) => p.id !== id));
+    if (focus === id) setFocus("remote");
+  }
   const messages = chat?.messages.slice(-12) || localMessages;
   return (
     <MotionConfig reducedMotion="user">
-      <motion.div
+      <motion.dialog
+        open
         ref={stage}
         className={`call-stage ${minimized ? "is-minimized" : ""}`}
-        role="dialog"
         aria-modal={!minimized}
         aria-label="Appel simulé"
         initial={{ opacity: 0, scale: 0.97 }}
@@ -251,6 +306,7 @@ export default function CallStage({
                   aria-label="Vue grille"
                   className={layout === "grid" ? "selected" : ""}
                   onClick={() => {
+                    setPage(0);
                     setLayout("grid");
                     setSharing(false);
                   }}
@@ -261,7 +317,10 @@ export default function CallStage({
                 <button
                   aria-label="Vue intervenant"
                   className={layout === "focus" ? "selected" : ""}
-                  onClick={() => setLayout("focus")}
+                  onClick={() => {
+                    setPage(0);
+                    setLayout("focus");
+                  }}
                 >
                   <Expand size={16} />
                   Focus
@@ -269,11 +328,14 @@ export default function CallStage({
               </div>
             </div>
             <div
-              className={`cs-grid ${layout === "focus" ? "focus-layout" : ""} ${people.length === 2 ? "duo" : ""} ${sharing ? "is-sharing" : ""}`}
+              ref={gridRef}
+              data-visible-count={visiblePeople.length}
+              className={`cs-grid adaptive-grid ${layout === "focus" ? "focus-layout" : ""} ${people.length === 2 ? "duo" : ""} ${sharing ? "is-sharing" : ""}`}
             >
-              {sharing && (
+              {sharing && !minimized && (
                 <motion.div
                   className="cs-shared-screen"
+                  style={tileStyle(focusedLayout.main)}
                   initial={{ opacity: 0, scale: 0.94 }}
                   animate={{ opacity: 1, scale: 1 }}
                 >
@@ -312,14 +374,20 @@ export default function CallStage({
                   </div>
                 </motion.div>
               )}
-              {people.map((p, i) => (
+              {visiblePeople.map((p, i) => (
                 <motion.article
                   layout
+                  style={tileStyle(rectangles[i])}
+                  data-person-id={p.id}
                   key={p.id}
-                  className={`cs-person ${layout === "focus" && p.id === focus ? "is-focused" : ""} ${!connected ? "is-ringing" : ""}`}
+                  className={`cs-person ${rectangles[i]?.height < 150 ? "compact-tile" : ""} ${layout === "focus" && p.id === focus ? "is-focused" : ""} ${!connected ? "is-ringing" : ""}`}
                   initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.055, duration: 0.3 }}
+                  transition={{
+                    layout: { duration: 0.25 },
+                    opacity: { duration: 0.2 },
+                    y: { duration: 0.2 },
+                  }}
                 >
                   {connected && call.video && (!p.self || camera) ? (
                     p.self && localPreview ? (
@@ -334,7 +402,7 @@ export default function CallStage({
                       <img
                         className="cs-person-photo"
                         src={`/images/call-person-${p.photo}.webp`}
-                        alt={`${p.name} — image de démonstration`}
+                        alt={`${p.name} — participant de démonstration`}
                       />
                     )
                   ) : (
@@ -369,6 +437,7 @@ export default function CallStage({
                       title="Mettre en avant"
                       aria-label={`Mettre en avant ${p.name}`}
                       onClick={() => {
+                        setPage(0);
                         setFocus(p.id);
                         setLayout("focus");
                       }}
@@ -393,6 +462,35 @@ export default function CallStage({
                   </div>
                 </motion.article>
               ))}
+            </div>
+            <div className="cs-grid-pagination">
+              <span>
+                {people.length} participants
+                {pageCount > 1
+                  ? ` · ${activePage * perPage + 1}–${Math.min((activePage + 1) * perPage, pool.length)} affichés`
+                  : ""}
+              </span>
+              {pageCount > 1 && (
+                <div>
+                  <button
+                    aria-label="Participants précédents"
+                    disabled={activePage === 0}
+                    onClick={() => setPage(activePage - 1)}
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <b>
+                    {activePage + 1} / {pageCount}
+                  </b>
+                  <button
+                    aria-label="Participants suivants"
+                    disabled={activePage >= pageCount - 1}
+                    onClick={() => setPage(activePage + 1)}
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
             </div>
             {!connected && (
               <div className="cs-answer">
@@ -548,6 +646,14 @@ export default function CallStage({
                           <small>{p.self ? "Votre aperçu" : "Participant simulé"}</small>
                         </span>
                         {p.muted ? <MicOff size={17} /> : <Mic size={17} />}
+                        {!p.self && p.id.startsWith("demo-") && (
+                          <button
+                            aria-label={`Retirer ${p.name}`}
+                            onClick={() => removePerson(p.id)}
+                          >
+                            <UserMinus size={16} />
+                          </button>
+                        )}
                       </div>
                     ))}
                     <button className="cs-add-person" onClick={addParticipant}>
@@ -633,7 +739,7 @@ export default function CallStage({
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
+      </motion.dialog>
     </MotionConfig>
   );
 }
